@@ -1,0 +1,95 @@
+:root {
+  /* 保持配色方案不变：深黑背景 + 工业荧光绿 */
+  --theme-black: #0b0c10;       
+  --theme-dark-gray: #1f2833;   
+  --theme-neon: #c5f015;        /* 核心高亮色 */
+  --theme-white: #ffffff;
+  --theme-text-gray: #c5c6c7;
+  
+  /* 覆盖 Element Plus 的变量 */
+  --el-color-primary: var(--theme-neon);
+  --el-color-primary-light-9: #1f2833; 
+  --el-color-primary-light-3: #a3c712;
+  --el-text-color-regular: var(--theme-text-gray);
+  --el-text-color-primary: var(--theme-white);
+  --el-bg-color: var(--theme-black);
+  --el-bg-color-overlay: var(--theme-dark-gray);
+  --el-border-color-lighter: #2c3038;
+  --el-fill-color-blank: var(--theme-dark-gray);
+}
+
+body {
+  background-color: var(--theme-black);
+  color: var(--theme-white);
+  /* 修改字体栈：优先显示中文黑体，英文字体作为后备 */
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--theme-black);
+}
+
+/* 表格透明化处理 */
+.el-table, .el-table__expanded-cell {
+  background-color: transparent !important;
+  color: var(--theme-white);
+}
+.el-table th, .el-table tr, .el-table td {
+  background-color: transparent !important;
+  border-bottom: 1px solid #333 !important;
+}
+.el-table--enable-row-hover .el-table__body tr:hover > td {
+  background-color: rgba(197, 240, 21, 0.1) !important;
+}
+.el-table th.el-table__cell {
+  background-color: #151515 !important;
+  color: var(--theme-neon);
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* 卡片样式 */
+.el-card {
+  background-color: var(--theme-dark-gray) !important;
+  border: none !important;
+  color: var(--theme-white) !important;
+}
+
+/* 按钮样式 */
+.el-button--primary {
+  background-color: var(--theme-neon) !important;
+  border-color: var(--theme-neon) !important;
+  color: #000 !important;
+  font-weight: 800; /* 加粗文字 */
+}
+.el-button--danger {
+  background: transparent;
+  border: 1px solid #ff4d4f;
+  color: #ff4d4f;
+}
+.el-button--danger:hover {
+  background: #ff4d4f;
+  color: #fff;
+}
+
+/* 进度条 */
+.el-progress-bar__inner {
+  background-color: var(--theme-neon) !important;
+}
+
+/* 数字专用字体：保留 Roboto Mono 用于显示数据，看起来更专业 */
+.font-mono {
+  font-family: 'Roboto Mono', monospace;
+  letter-spacing: -0.5px;
+}
