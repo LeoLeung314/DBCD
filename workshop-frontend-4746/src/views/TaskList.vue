@@ -98,26 +98,79 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" fixed="right" width="220" align="right">
+                <!-- ================== 替换开始 ================== -->
+        <el-table-column label="操作" fixed="right" width="160" align="center">
           <template #default="scope">
-            <el-button-group>
-               <el-button 
-                size="small" 
-                type="danger" 
-                plain
-                v-if="scope.row.taskStatus === '未开始'"
-                @click="handleDelete(scope.row.taskId)">撤销</el-button>
             
-              <el-button 
-                  size="small" 
-                  type="primary" 
-                  v-if="scope.row.taskStatus !== '已完成'"
-                  @click="handleComplete(scope.row.taskId)">一键完成</el-button>
+            <!-- 1. 首选快捷按钮 -->
+            <el-button 
+              v-if="scope.row.taskStatus === '执行中'"
+              size="small" type="primary" link 
+              @click="openReportDialog(scope.row)"
+            >
+              <el-icon><Timer /></el-icon> 汇报
+            </el-button>
+            <el-button 
+              v-else-if="scope.row.taskStatus === '未开始'"
+              size="small" type="warning" link 
+              @click="handleEdit(scope.row)"
+            >
+              <el-icon><Edit /></el-icon> 编辑
+            </el-button>
+           
 
-               <el-button size="small" plain @click="viewDetails(scope.row.taskId)">详情</el-button>
-            </el-button-group>
+            <!-- 2. 更多操作下拉菜单 -->
+            <el-dropdown trigger="click" style="margin-left: 8px;">
+              <span class="el-dropdown-link" style="cursor: pointer; color: var(--theme-neon); font-size: 12px; display: flex; align-items: center;">
+                更多 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  
+                  <!-- 只有“未开始”才能编辑 -->
+                  <el-dropdown-item v-if="scope.row.taskStatus === '未开始'" @click="handleEdit(scope.row)">
+                    <el-icon><Edit /></el-icon> 修改计划
+                  </el-dropdown-item>
+
+                  <!-- 只有“执行中”或“未开始”才能汇报 -->
+                  <el-dropdown-item 
+                      v-if="scope.row.taskStatus !== '已完成'" 
+                      @click="openReportDialog(scope.row)"
+                  >
+                    <el-icon><Timer /></el-icon> 汇报进度
+                  </el-dropdown-item>
+                  
+                  <!-- 只有未完成的才能点完成 -->
+                  <el-dropdown-item 
+                      v-if="scope.row.taskStatus !== '已完成'" 
+                      @click="handleComplete(scope.row.taskId)"
+                  >
+                    <el-icon><Check /></el-icon> 一键完成
+                  </el-dropdown-item>
+
+                  <!-- 详情随时可以看 -->
+                  <el-dropdown-item @click="viewDetails(scope.row.taskId)">
+                    <el-icon><Document /></el-icon> 查看详情
+                  </el-dropdown-item>
+
+                  <!-- 只有“未开始”才能撤销 (红色警告线) -->
+                  <el-dropdown-item 
+                    v-if="scope.row.taskStatus === '未开始'" 
+                    divided 
+                    @click="handleDelete(scope.row.taskId)" 
+                    style="color: #f56c6c;"
+                  >
+                    <el-icon><Delete /></el-icon> 撤销任务
+                  </el-dropdown-item>
+                  
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+
           </template>
         </el-table-column>
+        <!-- ================== 替换结束 ================== -->
+
       </el-table>
     </el-card>
 
@@ -210,6 +263,56 @@
             <el-button @click="detailVisible = false">关闭</el-button>
         </template>
     </el-dialog>
+    
+    <!-- ================== 修正后的编辑弹窗 ================== -->
+    <el-dialog v-model="editDialogVisible" title="调整生产计划" width="30%" class="custom-dialog">
+        <el-form :model="editForm" label-width="100px">
+            <el-form-item label="任务编号">
+                <el-input v-model="editForm.taskId" disabled />
+            </el-form-item>
+            <el-form-item label="计划产量">
+                <el-input-number v-model="editForm.planOutput" :min="1" style="width:100%" />
+            </el-form-item>
+            <el-form-item label="计划结束">
+                <el-date-picker 
+                    v-model="editForm.planEndTime" 
+                    type="datetime" 
+                    placeholder="选择截止时间" 
+                    value-format="YYYY-MM-DD HH:mm:ss"
+                    style="width: 100%" 
+                />
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="editDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitUpdate">保存修改</el-button>
+            </span>
+        </template>
+    </el-dialog>
+
+        <!-- ================== 补全：汇报进度弹窗 (start) ================== -->
+    <el-dialog v-model="reportDialogVisible" title="汇报生产进度" width="30%" class="custom-dialog">
+        <el-form :model="reportForm" label-width="100px">
+            <el-form-item label="任务编号">
+                <el-input v-model="reportForm.taskId" disabled />
+            </el-form-item>
+            <el-form-item label="本次完成">
+                <el-input-number v-model="reportForm.quantityDone" :min="1" style="width:100%" />
+            </el-form-item>
+            <el-form-item label="操作员ID">
+                <el-input v-model="reportForm.operatorId" placeholder="请输入工号" />
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <span class="dialog-footer">
+                <el-button @click="reportDialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitReport">提交汇报</el-button>
+            </span>
+        </template>
+    </el-dialog>
+    <!-- ================== 补全：汇报进度弹窗 (end) ================== -->
+
 
 
   </div>
@@ -220,7 +323,10 @@ import type { TaskProgressVo, TaskForm, Product, ApiResponse, TaskPrediction } f
 import { ref, onMounted, computed } from 'vue'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MagicStick, Warning, CircleCheck } from '@element-plus/icons-vue' // 新增图标引入
+import { 
+  MagicStick, Warning, CircleCheck, 
+  ArrowDown, Edit, Timer, Delete, Check, Document 
+} from '@element-plus/icons-vue'
 
 interface TaskExec {
     execId: number;
@@ -234,6 +340,95 @@ interface TaskExec {
 const detailVisible = ref(false)
 const detailList = ref<TaskExec[]>([])
 const currentDetailTaskId = ref('')
+
+// ================== 补全：汇报逻辑 (start) ==================
+
+// 1. 变量定义
+const reportDialogVisible = ref(false)
+const reportForm = ref({
+    taskId: '',
+    quantityDone: 0,
+    operatorId: 'OP001', // 默认工号，方便测试
+    execTime: '' 
+})
+
+// 2. 打开弹窗函数 (修复报错的核心)
+const openReportDialog = (row: any) => {
+    reportForm.value.taskId = row.taskId
+    reportForm.value.quantityDone = 0 // 重置为0
+    reportDialogVisible.value = true
+}
+
+// 3. 提交汇报函数
+const submitReport = async () => {
+    if (reportForm.value.quantityDone <= 0) {
+        ElMessage.warning('汇报数量必须大于0')
+        return
+    }
+    try {
+        // 注意：这里调用的接口是 /task/exec/add，确保后端有这个接口
+        const res = await request.post('/task/exec/add', {
+            ...reportForm.value,
+            execTime: new Date() // 补一个当前时间
+        })
+        
+        if (res.data.code === 200) {
+            ElMessage.success('进度汇报成功')
+            reportDialogVisible.value = false
+            loadTasks() // 刷新列表，进度条会自动涨
+        } else {
+            ElMessage.error(res.data.message || '汇报失败')
+        }
+    } catch (error) {
+        ElMessage.error('网络请求失败')
+    }
+}
+// ================== 补全：汇报逻辑 (end) ==================
+
+
+
+// ================== 新增的 编辑逻辑 ==================
+
+// 1. 控制弹窗显示的开关
+const editDialogVisible = ref(false)
+
+// 2. 弹窗里的表单数据
+const editForm = ref({
+    taskId: '',
+    planOutput: 0,
+    planEndTime: ''
+})
+
+// 3. 点击列表上的【编辑】按钮时触发
+const handleEdit = (row: any) => {
+    // 把这一行的 taskID、产量、时间填入表单
+    editForm.value.taskId = row.taskId
+    editForm.value.planOutput = row.planOutput
+    editForm.value.planEndTime = row.planEndTime
+    // 打开弹窗
+    editDialogVisible.value = true
+}
+
+// 4. 点击弹窗里的【保存调整】按钮时触发
+const submitUpdate = async () => {
+    try {
+        // 发送请求给后端接口
+        // 注意：这里的 URL 要和你后端的 Controller 对应
+        const res = await request.put('/task/update', editForm.value)
+        
+        // 判断后端返回的状态码
+        if (res.data.code === 200) {
+            ElMessage.success('生产计划调整成功！')
+            editDialogVisible.value = false // 关掉弹窗
+            loadTasks() // ！！！刷新列表，让进度条变化！！！
+        } else {
+            ElMessage.error(res.data.message || '调整失败')
+        }
+    } catch (error) {
+        console.error(error)
+        ElMessage.error('请求发送失败，请检查网络')
+    }
+}
 
 
 // 列表数据

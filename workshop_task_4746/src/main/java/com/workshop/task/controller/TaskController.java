@@ -226,4 +226,39 @@ public class TaskController {
         }
         return result;
     }
+
+    /**
+     * 汇报生产进度 (插入执行记录)
+     * 接口路由：POST /api/task/exec/add
+     */
+    @PostMapping("/exec/add")
+    public Map<String, Object> addTaskExec(@RequestBody TaskExec4746 taskExec) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            // 1. 插入执行记录
+            int rows = taskExecMapper.insert(taskExec);
+
+            if (rows > 0) {
+                // 2. 同时更新主任务状态（可选：如果任务还没开始，自动变为执行中）
+                Task4746 mainTask = taskService.getById(taskExec.getTaskId());
+                if (mainTask != null && "未开始".equals(mainTask.getTaskStatus())) {
+                    mainTask.setTaskStatus("执行中");
+                    taskService.updateById(mainTask);
+                }
+
+                result.put("code", 200);
+                result.put("message", "进度汇报成功");
+            } else {
+                result.put("code", 500);
+                result.put("message", "汇报失败，数据库未更新");
+            }
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("message", "汇报异常: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+
 }
