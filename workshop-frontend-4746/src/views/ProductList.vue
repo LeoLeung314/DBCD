@@ -98,4 +98,9 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
 }
+
+/* 表格数据行文字改为亮白色 */
+:deep(.el-table td.el-table__cell) {
+  color: #fff !important;
+}
 </style>

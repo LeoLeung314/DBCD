@@ -262,40 +262,45 @@ public class TaskController {
 
 
     /**
-     * 统计按期完成率
+     * 统计按期完成率及产量数据
      * 接口路由：GET /api/task/statistics
-     * 参数：startTime (yyyy-MM-dd), endTime (yyyy-MM-dd)
      */
     @GetMapping("/statistics")
     public Map<String, Object> getTaskStatistics(
             @RequestParam(required = false) String startTime,
             @RequestParam(required = false) String endTime) {
-
-
-
-
         Map<String, Object> result = new HashMap<>();
         try {
-            // 1. 构建查询条件：查询指定时间段内“结束”的任务
+            // 1. 构建查询条件
             QueryWrapper<Task4746> query = new QueryWrapper<>();
             if (startTime != null && !startTime.isEmpty()) {
-                query.ge("plan_end_time", startTime); // >= 开始时间
+                query.ge("plan_end_time", startTime);
             }
             if (endTime != null && !endTime.isEmpty()) {
-                query.le("plan_end_time", endTime);   // <= 结束时间
+                query.le("plan_end_time", endTime);
             }
 
-            // 查询所有符合时间段的任务
             List<Task4746> tasks = taskService.list(query);
 
             // 2. 统计数据
             int total = tasks.size();
             int onTimeCompleted = 0;
 
+            // 新增：定义产量累加变量
+            long totalPlanOutput = 0;   // 总计划产量
+            long totalActualOutput = 0; // 总完成产量
+
             for (Task4746 t : tasks) {
-                // 判断逻辑：状态是“已完成” 且 实际完成时间 <= 计划结束时间
+                // 累加产量 (注意判空，防止空指针)
+                if (t.getPlanOutput() != null) {
+                    totalPlanOutput += t.getPlanOutput();
+                }
+                if (t.getActualOutput() != null) {
+                    totalActualOutput += t.getActualOutput();
+                }
+
+                // 原有的按期完成判断逻辑
                 if ("已完成".equals(t.getTaskStatus()) && t.getFinishTime() != null) {
-                    // 如果 finishTime 在 planEndTime 之前或相等
                     if (!t.getFinishTime().after(t.getPlanEndTime())) {
                         onTimeCompleted++;
                     }
@@ -308,15 +313,81 @@ public class TaskController {
             Map<String, Object> data = new HashMap<>();
             data.put("total", total);
             data.put("onTime", onTimeCompleted);
-            data.put("rate", String.format("%.2f", rate)); // 保留两位小数
+            data.put("rate", String.format("%.2f", rate));
+
+            // 新增：将产量数据放入返回结果
+            data.put("totalPlanned", totalPlanOutput);
+            data.put("totalCompleted", totalActualOutput);
 
             result.put("code", 200);
             result.put("message", "统计成功");
             result.put("data", data);
-
         } catch (Exception e) {
             result.put("code", 500);
             result.put("message", "统计失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 获取已有任务的产品列表
+     */
+    @GetMapping("/products")
+    public Map<String, Object> getProductList() {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            List<Map<String, Object>> products = taskProgressMapper.selectDistinctProducts();
+            result.put("code", 200);
+            result.put("data", products);
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("message", e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 获取产量趋势数据
+     * type: "day" 或 "week"
+     */
+    @GetMapping("/trend")
+    public Map<String, Object> getOutputTrend(
+            @RequestParam String productId,
+            @RequestParam String type) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            // 根据类型决定数据库的时间格式化字符串
+            String dateFormat = "day".equals(type) ? "YYYY-MM-DD" : "YYYY-IW"; // IW表示ISO周
+
+            List<Map<String, Object>> trendData = taskProgressMapper.selectProductOutputTrend(productId, dateFormat);
+
+            result.put("code", 200);
+            result.put("data", trendData);
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("message", e.getMessage());
+        }
+        return result;
+    }
+
+
+    /**
+     * DB4AI 预测产品未来批次平均产量（新增功能）
+     * 接口路由：GET /api/task/predict/product/P005
+     * @param productId 产品ID
+     */
+    @GetMapping("/predict/product/{productId}")
+    public Map<String, Object> predictProductOutput(@PathVariable String productId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            Map<String, Object> prediction = taskProgressMapper.predictProductOutput(productId);
+
+            result.put("code", 200);
+            result.put("data", prediction);
+            result.put("message", "DB4AI预测成功");
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("message", "预测失败: " + e.getMessage());
         }
         return result;
     }

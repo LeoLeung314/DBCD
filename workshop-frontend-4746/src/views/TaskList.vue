@@ -10,18 +10,48 @@
         <span class="label">当前总累计产量</span>
         <span class="value">{{ totalOutput }}</span>
       </div>
-      <div class="action-area">
-        <el-button type="primary" size="large" @click="openAddDialog">
-          + 下达生产任务
-        </el-button>
-      </div>
-    </div>
+  </div>
 
     <!-- 新增：按期完成率统计卡片 -->
+    <!-- 功能操作与统计数据行 -->
+<div style="display: flex; align-items: center; padding: 0 20px; margin-bottom: 30px;">
+  
+  <!-- 左侧：下达新任务按钮（移到这里） -->
+  <div style="margin-right: 60px;">
+    <el-button type="primary" size="large" @click="openAddDialog" class="glow-button">
+      <el-icon style="margin-right: 8px"><Plus /></el-icon> 下达新任务
+    </el-button>
+  </div>
+
+  <!-- 中间：统计数据 -->
+  <div style="display: flex; gap: 60px; flex: 1;">
+    
     <div class="stat-item" style="cursor: pointer;" @click="statsDialogVisible = true">
-      <span class="label">本月按期完成率</span>
-      <span class="value" style="color: var(--theme-neon)">{{ statsData.rate }}%</span>
+      <span class="label">本月按期完成率 <el-icon><ArrowRight /></el-icon></span>
+      <span class="value" style="color: var(--theme-neon); font-size: 28px;">{{ statsData.rate }}%</span>
     </div>
+
+    <div class="stat-item">
+      <span class="label">区间总计划产量</span>
+      <span class="value" style="font-size: 28px;">{{ statsData.totalPlanned }}</span>
+    </div>
+
+    <div class="stat-item">
+      <span class="label">区间总完成产量</span>
+      <span class="value" style="color: #409EFF; font-size: 28px;">{{ statsData.totalCompleted }}</span>
+    </div>
+
+  </div>
+
+  <!-- 右侧：趋势分析按钮 -->
+  <div>
+    <el-button type="success" size="large" round @click="openTrendDialog">
+      <el-icon style="margin-right: 5px"><TrendCharts /></el-icon>
+      产量趋势分析
+    </el-button>
+  </div>
+
+</div>
 
 
     <!-- 主表格 -->
@@ -355,18 +385,123 @@
         </div>
     </el-dialog>
 
+  <!-- 趋势分析弹窗 (ECharts + AI预测) -->
+<el-dialog v-model="trendDialogVisible" title="产品产量趋势分析" width="900px" class="custom-dialog">
+  
+  <!-- 控制栏：产品选择 + 时间维度 -->
+  <div style="margin-bottom: 20px; display: flex; gap: 20px; align-items: center;">
+    
+    <el-select v-model="trendQuery.productId" placeholder="请选择产品" style="width: 250px">
+      <el-option
+        v-for="item in trendProductList"
+        :key="item.product_id"
+        :label="item.product_name"
+        :value="item.product_id"
+      />
+    </el-select>
+
+    <el-radio-group v-model="trendQuery.type">
+      <el-radio-button label="day">按天统计</el-radio-button>
+      <el-radio-button label="week">按周统计</el-radio-button>
+    </el-radio-group>
+
+    <div style="flex: 1;"></div>
+
+    <el-tag type="info">
+      已选：{{ trendProductList.find(p => p.product_id === trendQuery.productId)?.product_name || '未选择' }}
+    </el-tag>
+  </div>
+
+  <!-- ECharts 图表容器 -->
+  <div ref="trendChartRef" style="width: 100%; height: 400px; background: #1f2833; border-radius: 8px; border: 1px solid #333;"></div>
+
+  <!-- AI 预测区域 -->
+  <div style="margin-top: 30px; padding: 20px; background: rgba(64, 158, 255, 0.1); border-radius: 8px; border: 1px solid #409EFF;">
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+      <h3 style="margin: 0; color: #409EFF;">
+        <el-icon style="margin-right: 5px; vertical-align: middle;"><MagicStick /></el-icon>
+        DB4AI 智能预测
+      </h3>
+      <el-button type="primary" @click="fetchProductPrediction" :loading="predicting">
+        {{ predicting ? '预测中...' : '预测未来批次产量' }}
+      </el-button>
+    </div>
+
+    <!-- 预测结果展示（深色主题优化版） -->
+<div v-if="productPrediction" style="margin-top: 15px;">
+  
+  <!-- 使用 Grid 布局 -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+    
+    <!-- 产品名称（占满两列） -->
+    <div style="grid-column: span 2; padding: 15px; background: rgba(31, 40, 51, 0.8); border: 1px solid #409EFF; border-radius: 6px;">
+      <div style="color: #fff; font-size: 12px; margin-bottom: 8px;">产品名称</div>
+      <div style="color: #fff; font-weight: bold; font-size: 18px;">{{ productPrediction.product_name }}</div>
+    </div>
+
+    <!-- 历史平均产量 -->
+    <div style="padding: 15px; background: rgba(31, 40, 51, 0.8); border: 1px solid #333; border-radius: 6px;">
+      <div style="color: #fff; font-size: 12px; margin-bottom: 8px;">历史平均产量</div>
+      <div style="color: #fff; font-size: 20px; font-weight: bold;">{{ productPrediction.historical_avg }}</div>
+    </div>
+
+    <!-- AI预测产量（高亮显示） -->
+    <div style="padding: 15px; background: rgba(64, 158, 255, 0.15); border: 2px solid #409EFF; border-radius: 6px; box-shadow: 0 0 15px rgba(64, 158, 255, 0.3);">
+      <div style="color: #fff; font-size: 12px; margin-bottom: 8px;">AI预测产量</div>
+      <div style="color: #409EFF; font-size: 24px; font-weight: bold; text-shadow: 0 0 10px rgba(64, 158, 255, 0.5);">
+        {{ productPrediction.predicted_avg }}
+      </div>
+    </div>
+
+    <!-- 置信度 -->
+    <div style="padding: 15px; background: rgba(31, 40, 51, 0.8); border: 1px solid #333; border-radius: 6px;">
+      <div style="color: #fff; font-size: 12px; margin-bottom: 8px;">置信度</div>
+      <div style="margin-top: 5px;">
+        <el-tag :type="getConfidenceType(productPrediction.confidence_level)" size="large" effect="dark">
+          {{ productPrediction.confidence_level }}
+        </el-tag>
+      </div>
+    </div>
+
+    <!-- 生产建议（占满两列） -->
+    <div style="grid-column: span 2; padding: 15px; background: rgba(197, 240, 21, 0.1); border: 1px solid var(--theme-neon); border-radius: 6px;">
+      <div style="color: #fff; font-size: 12px; margin-bottom: 8px;">生产建议</div>
+      <div style="color: var(--theme-neon); font-size: 15px; line-height: 1.6;">
+        {{ productPrediction.recommendation }}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+    
+
+  </div>
+
+</el-dialog>
+
+  
+
+
+
+
   </div>
 </template>
 
 <script setup lang="ts">
 import type { TaskProgressVo, TaskForm, Product, ApiResponse, TaskPrediction } from '../types'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import * as echarts from 'echarts'
 import { 
-  MagicStick, Warning, CircleCheck, 
-  ArrowDown, Edit, Timer, Delete, Check, Document 
+  MagicStick, Warning, CircleCheck, ArrowDown, Edit, Timer, Delete, Check, Document,
+  ArrowRight, TrendCharts, Plus  
 } from '@element-plus/icons-vue'
+
+
 
 interface TaskExec {
     execId: number;
@@ -593,9 +728,56 @@ const statsDateRange = ref([]) // [startTime, endTime]
 const statsData = ref({
     total: 0,
     onTime: 0,
-    rate: '0.00'
+    rate: '0.00',
+    totalPlanned: 0,   // 新增：总计划产量
+    totalCompleted: 0  // 新增：总完成产量
 })
 
+// 新增：趋势分析相关变量
+const trendDialogVisible = ref(false)
+const trendChartRef = ref(null)
+let myChart: any = null
+const trendQuery = ref({
+  productId: '',
+  type: 'day'
+})
+const trendProductList = ref<any[]>([])
+
+// ========== 🆕 新增：AI 预测相关变量 ==========
+const predicting = ref(false)
+const productPrediction = ref<any>(null)
+
+// ========== 🆕 新增：AI 预测相关函数 ==========
+
+// 获取产品 AI 预测
+const fetchProductPrediction = async () => {
+  if (!trendQuery.value.productId) {
+    ElMessage.warning('请先选择产品')
+    return
+  }
+  
+  predicting.value = true
+  try {
+    const res = await request.get(`/task/predict/product/${trendQuery.value.productId}`)
+    if (res.data.code === 200) {
+      productPrediction.value = res.data.data
+      ElMessage.success('AI预测完成')
+    } else {
+      ElMessage.error(res.data.message || '预测失败')
+    }
+  } catch (error) {
+    ElMessage.error('网络异常')
+  } finally {
+    predicting.value = false
+  }
+}
+
+// 置信度标签颜色
+const getConfidenceType = (level: string) => {
+  if (level === '高') return 'success'
+  if (level === '中') return 'warning'
+  return 'danger'
+}
 
 // 2. 调用统计接口
 const fetchStatistics = async () => {
@@ -626,6 +808,100 @@ const fetchStatistics = async () => {
 }
 
 
+// 加载趋势产品列表
+const loadTrendProducts = async () => {
+  try {
+    const res = await request.get('/task/products')
+    if (res.data.code === 200) {
+      trendProductList.value = res.data.data
+      if (trendProductList.value && trendProductList.value.length > 0) {
+        trendQuery.value.productId = trendProductList.value[0]['product_id']
+      }
+    }
+  } catch (error) {
+    console.error('加载产品列表失败', error)
+  }
+}
+
+// 打开趋势弹窗
+const openTrendDialog = () => {
+  trendDialogVisible.value = true
+  productPrediction.value = null 
+  loadTrendProducts().then(() => {
+     nextTick(() => {
+        loadTrendData()
+     })
+  })
+}
+
+// 加载趋势数据
+const loadTrendData = async () => {
+  if (!trendQuery.value.productId) return
+  
+  try {
+    const res = await request.get('/task/trend', {
+      params: {
+        productId: trendQuery.value.productId,
+        type: trendQuery.value.type
+      }
+    })
+    
+    if (res.data.code === 200) {
+      renderChart(res.data.data)
+    }
+  } catch (error) {
+    console.error('加载趋势数据失败', error)
+  }
+}
+
+// 渲染图表
+const renderChart = (data: any[]) => {
+  if (!trendChartRef.value) return
+  
+  if (!myChart) {
+    myChart = echarts.init(trendChartRef.value)
+  }
+
+  const xData = data.map(item => item.time_point)
+  const yData = data.map(item => item.total_output)
+
+  const option = {
+    title: { text: '产量变化趋势', left: 'center', textStyle: { color: '#fff' } },
+    tooltip: { trigger: 'axis' },
+    grid: { top: 40, right: 20, bottom: 30, left: 50 },
+    xAxis: { 
+      type: 'category', 
+      data: xData,
+      name: trendQuery.value.type === 'day' ? '日期' : '周次',
+      axisLabel: { color: '#ccc' }
+    },
+    yAxis: { 
+      type: 'value', 
+      name: '产量',
+      splitLine: { lineStyle: { color: '#333' } },
+      axisLabel: { color: '#ccc' }
+    },
+    series: [{
+      data: yData,
+      type: 'line',
+      smooth: true,
+      itemStyle: { color: '#409EFF' },
+      areaStyle: { opacity: 0.3 }
+    }]
+  }
+  myChart.setOption(option)
+}
+
+// 监听条件变化
+watch(() => [trendQuery.value.productId, trendQuery.value.type], () => {
+  if (trendDialogVisible.value) {
+    productPrediction.value = null
+    loadTrendData()
+  }
+})
+
+
+
 // 3. 在 onMounted 里也可以默认调一次（比如统计本月）
 onMounted(() => {
     loadTasks()
@@ -635,6 +911,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 表格数据行文字改为亮白色 */
+:deep(.el-table td.el-table__cell) {
+  color: #fff !important;
+}
+
+
 .dashboard-container {
   width: 100%;
 }
@@ -656,7 +938,7 @@ onMounted(() => {
 }
 .stat-item .label {
   font-size: 14px;
-  color: #888;
+  color: #fff;
   margin-bottom: 5px;
 }
 .stat-item .value {
@@ -679,7 +961,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   font-size: 12px;
-  color: #888;
+  color: #fff;
 }
 
 .text-small {
