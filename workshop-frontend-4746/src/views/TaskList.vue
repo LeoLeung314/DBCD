@@ -17,6 +17,13 @@
       </div>
     </div>
 
+    <!-- 新增：按期完成率统计卡片 -->
+    <div class="stat-item" style="cursor: pointer;" @click="statsDialogVisible = true">
+      <span class="label">本月按期完成率</span>
+      <span class="value" style="color: var(--theme-neon)">{{ statsData.rate }}%</span>
+    </div>
+
+
     <!-- 主表格 -->
     <el-card class="box-card" shadow="never">
       <el-table 
@@ -313,7 +320,40 @@
     </el-dialog>
     <!-- ================== 补全：汇报进度弹窗 (end) ================== -->
 
-
+     <!-- 在最底部的 dialog 区域添加统计弹窗 -->
+    <el-dialog v-model="statsDialogVisible" title="按期完成率统计" width="400px" class="custom-dialog">
+        <el-form label-width="80px">
+            <el-form-item label="统计范围">
+                <el-date-picker
+                    v-model="statsDateRange"
+                    type="daterange"
+                    range-separator="至"
+                    start-placeholder="开始"
+                    end-placeholder="结束"
+                    value-format="YYYY-MM-DD"
+                    style="width: 100%"
+                    @change="fetchStatistics"
+                />
+            </el-form-item>
+        </el-form>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <el-row :gutter="20">
+                <el-col :span="8">
+                    <div class="text-small">总任务数</div>
+                    <div class="big-text">{{ statsData.total }}</div>
+                </el-col>
+                <el-col :span="8">
+                    <div class="text-small">按期完成</div>
+                    <div class="big-text" style="color: var(--theme-neon)">{{ statsData.onTime }}</div>
+                </el-col>
+                <el-col :span="8">
+                    <div class="text-small">完成率</div>
+                    <div class="big-text">{{ statsData.rate }}%</div>
+                </el-col>
+            </el-row>
+        </div>
+    </el-dialog>
 
   </div>
 </template>
@@ -547,6 +587,50 @@ const formatDate = (dateStr: string) => {
 }
 onMounted(() => { loadTasks() })
 
+// 1. 变量定义
+const statsDialogVisible = ref(false)
+const statsDateRange = ref([]) // [startTime, endTime]
+const statsData = ref({
+    total: 0,
+    onTime: 0,
+    rate: '0.00'
+})
+
+
+// 2. 调用统计接口
+const fetchStatistics = async () => {
+    try {
+        // 先给默认空字符串
+        let startTime = ''
+        let endTime = ''
+
+        // 这里的逻辑改严谨一点
+        // 确保 statsDateRange.value 存在，且长度为2
+        if (statsDateRange.value && Array.isArray(statsDateRange.value) && statsDateRange.value.length === 2) {
+            // 强转成 string，因为 el-date-picker 选出来的一定是 string
+            startTime = String(statsDateRange.value[0])
+            endTime = String(statsDateRange.value[1])
+        }
+        
+        // GET 请求传参
+        const res = await request.get('/task/statistics', {
+            params: { startTime, endTime }
+        })
+        
+        if (res.data.code === 200) {
+            statsData.value = res.data.data
+        }
+    } catch (e) {
+        console.error(e)
+    }
+}
+
+
+// 3. 在 onMounted 里也可以默认调一次（比如统计本月）
+onMounted(() => {
+    loadTasks()
+    fetchStatistics() // 默认统计所有
+})
 
 </script>
 

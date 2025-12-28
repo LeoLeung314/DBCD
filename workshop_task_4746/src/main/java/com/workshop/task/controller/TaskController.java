@@ -261,4 +261,65 @@ public class TaskController {
     }
 
 
+    /**
+     * 统计按期完成率
+     * 接口路由：GET /api/task/statistics
+     * 参数：startTime (yyyy-MM-dd), endTime (yyyy-MM-dd)
+     */
+    @GetMapping("/statistics")
+    public Map<String, Object> getTaskStatistics(
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime) {
+
+
+
+
+        Map<String, Object> result = new HashMap<>();
+        try {
+            // 1. 构建查询条件：查询指定时间段内“结束”的任务
+            QueryWrapper<Task4746> query = new QueryWrapper<>();
+            if (startTime != null && !startTime.isEmpty()) {
+                query.ge("plan_end_time", startTime); // >= 开始时间
+            }
+            if (endTime != null && !endTime.isEmpty()) {
+                query.le("plan_end_time", endTime);   // <= 结束时间
+            }
+
+            // 查询所有符合时间段的任务
+            List<Task4746> tasks = taskService.list(query);
+
+            // 2. 统计数据
+            int total = tasks.size();
+            int onTimeCompleted = 0;
+
+            for (Task4746 t : tasks) {
+                // 判断逻辑：状态是“已完成” 且 实际完成时间 <= 计划结束时间
+                if ("已完成".equals(t.getTaskStatus()) && t.getFinishTime() != null) {
+                    // 如果 finishTime 在 planEndTime 之前或相等
+                    if (!t.getFinishTime().after(t.getPlanEndTime())) {
+                        onTimeCompleted++;
+                    }
+                }
+            }
+
+            // 3. 计算完成率
+            double rate = total == 0 ? 0.0 : (double) onTimeCompleted / total * 100;
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("total", total);
+            data.put("onTime", onTimeCompleted);
+            data.put("rate", String.format("%.2f", rate)); // 保留两位小数
+
+            result.put("code", 200);
+            result.put("message", "统计成功");
+            result.put("data", data);
+
+        } catch (Exception e) {
+            result.put("code", 500);
+            result.put("message", "统计失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+
 }
