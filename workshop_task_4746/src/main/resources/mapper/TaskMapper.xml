@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.workshop.task.mapper.TaskMapper">
+
+    <!-- 这里的 resultType 要写你的 VO 类的全限定名 -->
+    <select id="selectTaskStatistics" resultType="com.workshop.task.entity.vo.TaskStatisticsVO">
+        SELECT
+        t.task_id AS taskId,
+        t.plan_output AS planOutput,
+        t.plan_end_time AS planEndTime,
+        t.finish_time AS finishTime,
+        t.task_status AS taskStatus,
+
+        -- 1. 统计当前总产量 (关联流水表求和，无记录则为0)
+        COALESCE(SUM(e.quantity_done), 0) AS totalOutput,
+
+        -- 2. 统计截止时间前的产量 (核心逻辑！)
+        -- OpenGauss/PostgreSQL 语法: PLAN_END_TIME + 1天 代表截止日当天的 23:59:59 后一秒
+        -- 逻辑：只累加那些“执行时间 小于截止日次日0点”的流水
+        COALESCE(SUM(
+        CASE
+        WHEN e.exec_time &lt; (t.plan_end_time + INTERVAL '1 DAY')
+        THEN e.quantity_done
+        ELSE 0
+        END
+        ), 0) AS outputBeforeDeadline
+
+        FROM task_4746 t
+        LEFT JOIN task_exec_4746 e ON t.task_id = e.task_id
+        WHERE 1=1
+        <if test="startTime != null and startTime != ''">
+            AND t.plan_end_time &gt;= TO_TIMESTAMP(#{startTime}, 'YYYY-MM-DD')
+        </if>
+        <if test="endTime != null and endTime != ''">
+            AND t.plan_end_time &lt;= TO_TIMESTAMP(#{endTime}, 'YYYY-MM-DD')
+        </if>
+        GROUP BY t.task_id, t.plan_output, t.plan_end_time, t.finish_time, t.task_status
+    </select>
+
+</mapper>

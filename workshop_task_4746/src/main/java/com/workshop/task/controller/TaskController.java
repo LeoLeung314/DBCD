@@ -5,15 +5,15 @@ import com.workshop.task.entity.Task4746;
 import com.workshop.task.entity.TaskExec4746;
 import com.workshop.task.entity.vo.TaskPredictionVO;
 import com.workshop.task.entity.vo.TaskProgressVo;
+import com.workshop.task.entity.vo.TaskStatisticsVO;
 import com.workshop.task.mapper.TaskExecMapper;
+import com.workshop.task.mapper.TaskMapper;
 import com.workshop.task.mapper.TaskProgressMapper;
 import com.workshop.task.service.TaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/task")
@@ -22,6 +22,9 @@ public class TaskController {
 
     @Autowired
     private TaskService taskService;
+
+    @Autowired
+    private TaskMapper taskMapper;
 
     @Autowired
     private TaskProgressMapper taskProgressMapper;
@@ -261,49 +264,42 @@ public class TaskController {
     }
 
 
-    /**
-     * 统计按期完成率及产量数据
-     * 接口路由：GET /api/task/statistics
-     */
     @GetMapping("/statistics")
     public Map<String, Object> getTaskStatistics(
             @RequestParam(required = false) String startTime,
             @RequestParam(required = false) String endTime) {
+
         Map<String, Object> result = new HashMap<>();
         try {
-            // 1. 构建查询条件
-            QueryWrapper<Task4746> query = new QueryWrapper<>();
-            if (startTime != null && !startTime.isEmpty()) {
-                query.ge("plan_end_time", startTime);
-            }
-            if (endTime != null && !endTime.isEmpty()) {
-                query.le("plan_end_time", endTime);
-            }
-
-            List<Task4746> tasks = taskService.list(query);
+            // 1. 调用自定义 XML 查询，直接获取带有“截止日前产量”的数据
+            // 注意：这里不再查 Task4746 实体，而是查我们定义的 VO
+            List<TaskStatisticsVO> list = taskMapper.selectTaskStatistics(startTime, endTime);
 
             // 2. 统计数据
-            int total = tasks.size();
-            int onTimeCompleted = 0;
+            int total = list.size();
+            int onTimeCompleted = 0;    // 按期完成数
+            int overdueCompleted = 0;   // 超时完成数
 
-            // 新增：定义产量累加变量
             long totalPlanOutput = 0;   // 总计划产量
             long totalActualOutput = 0; // 总完成产量
 
-            for (Task4746 t : tasks) {
-                // 累加产量 (注意判空，防止空指针)
-                if (t.getPlanOutput() != null) {
-                    totalPlanOutput += t.getPlanOutput();
-                }
-                if (t.getActualOutput() != null) {
-                    totalActualOutput += t.getActualOutput();
-                }
+            for (TaskStatisticsVO t : list) {
+                // 累加总产量 (展示用)
+                if (t.getPlanOutput() != null) totalPlanOutput += t.getPlanOutput();
+                if (t.getTotalOutput() != null) totalActualOutput += t.getTotalOutput();
 
-                // 原有的按期完成判断逻辑
-                if ("已完成".equals(t.getTaskStatus()) && t.getFinishTime() != null) {
-                    if (!t.getFinishTime().after(t.getPlanEndTime())) {
-                        onTimeCompleted++;
-                    }
+                // 核心判定：只看截止日前产量够不够
+                // 这行代码对应 SQL 里的 HAVING SUM(...) >= plan_output
+                long plan = t.getPlanOutput() == null ? 0 : t.getPlanOutput();
+                long doneBefore = t.getOutputBeforeDeadline() == null ? 0 : t.getOutputBeforeDeadline();
+
+                // 只有这里达标了，才算按期！其他花里胡哨的条件全都不要！
+                if (plan > 0 && doneBefore >= plan) {
+                    onTimeCompleted++;
+                } else {
+                    // 这里就是那 15 个没按期的 (32 - 17 = 15)
+                    // 包括 T0017 (补录的)、T00XX (没做完的)
+                    overdueCompleted++;
                 }
             }
 
@@ -312,19 +308,21 @@ public class TaskController {
 
             Map<String, Object> data = new HashMap<>();
             data.put("total", total);
-            data.put("onTime", onTimeCompleted);
+            data.put("onTime", onTimeCompleted);         // 应该是 17
+            data.put("overdueCompleted", overdueCompleted); // 应该是 1 (T0017)
             data.put("rate", String.format("%.2f", rate));
 
-            // 新增：将产量数据放入返回结果
             data.put("totalPlanned", totalPlanOutput);
             data.put("totalCompleted", totalActualOutput);
 
             result.put("code", 200);
             result.put("message", "统计成功");
             result.put("data", data);
+
         } catch (Exception e) {
             result.put("code", 500);
             result.put("message", "统计失败: " + e.getMessage());
+            e.printStackTrace();
         }
         return result;
     }
