@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.workshop.task.mapper.TaskProgressMapper">
+
+    <select id="selectList" resultType="com.workshop.task.entity.vo.TaskProgressVo">
+        SELECT
+            -- 直接查询视图里的已有字段 (注意字段名要和数据库列名一致)
+            v.task_id,
+            v.product_name,
+            v.plan_output,
+            v.actual_done,          -- 视图里本来就有总产量，不用再算一次 totalOutput
+            v.progress_percentage,
+            v.task_status,
+            v.plan_start_time,
+            v.plan_end_time,
+            v.finish_time,
+
+            -- 【新增】：手动计算 deadlineOutput (因为视图里没有这个)
+            -- 这里的逻辑是：去流水表里查，截止到计划结束时间为止的产量
+            (
+                SELECT COALESCE(SUM(e.quantity_done), 0)
+                FROM task_exec_4746 e
+                WHERE e.task_id = v.task_id
+                  AND e.exec_time &lt; (v.plan_end_time + INTERVAL '1 DAY')
+            ) AS deadlineOutput
+
+        FROM v_task_progress_4746 v
+        ORDER BY v.task_id ASC
+    </select>
+
+</mapper>

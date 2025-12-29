@@ -26,4 +26,6 @@ public class TaskProgressVo {
     private Date planEndTime;           // 计划结束时间
     private Date finishTime;            // 完成时间
 
+    private Long deadlineOutput;
+
 }

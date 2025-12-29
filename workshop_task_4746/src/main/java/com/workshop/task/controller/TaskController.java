@@ -40,16 +40,42 @@ public class TaskController {
     public Map<String, Object> getTaskList() {
         Map<String, Object> result = new HashMap<>();
         try {
+            // 1. 查询列表 (此时 deadlineOutput 已经有值了)
             List<TaskProgressVo> taskList = taskProgressMapper.selectList(null);
+
+            // 2. 遍历处理状态
+            for (TaskProgressVo task : taskList) {
+                // 只检查“已完成”的任务
+                if ("已完成".equals(task.getTaskStatus())) {
+
+                    long plan = task.getPlanOutput() == null ? 0 : task.getPlanOutput();
+                    long doneBeforeDeadline = task.getDeadlineOutput() == null ? 0 : task.getDeadlineOutput();
+
+                    // 【核心判词】
+                    // 只要截止日前的产量 < 计划产量，说明你是靠截止日后的“补录”才凑够 100% 的。
+                    // 这种必须判为“超时完成”！
+                    if (plan > 0 && doneBeforeDeadline < plan) {
+                        task.setTaskStatus("超时完成");
+                    }
+
+                    // 逻辑验证：
+                    // T0017: 截止日前做完1600 < 计划1700 -> 变为“超时完成” (完美)
+                    // T0016: 截止日前做完897 > 计划286 -> 保持“已完成” (完美)
+                    // T0027: 截止日前做完821 > 计划143 -> 保持“已完成” (完美)
+                }
+            }
+
             result.put("code", 200);
             result.put("message", "查询成功");
             result.put("data", taskList);
         } catch (Exception e) {
             result.put("code", 500);
             result.put("message", "查询失败: " + e.getMessage());
+            e.printStackTrace(); // 建议打印堆栈以便调试
         }
         return result;
     }
+
 
     /**
      * 新增任务
