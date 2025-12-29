@@ -22,9 +22,9 @@ public interface TaskProgressMapper extends BaseMapper<TaskProgressVo> {
     List<Map<String, Object>> selectDistinctProducts();
 
     /**
-     * 按时间粒度统计某产品的产量
-     * @param productId 产品ID
-     * @param dateFormat 时间格式 (openGauss语法: 'YYYY-MM-DD' 或 'YYYY-IW')
+     * 按时间统计某产品的产量
+     * @param productId
+     * @param dateFormat
      */
     @Select("SELECT to_char(e.exec_time, #{dateFormat}) as time_point, " +
             "       SUM(e.quantity_done) as total_output " +

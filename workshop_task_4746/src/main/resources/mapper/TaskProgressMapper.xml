@@ -4,19 +4,18 @@
 
     <select id="selectList" resultType="com.workshop.task.entity.vo.TaskProgressVo">
         SELECT
-            -- 直接查询视图里的已有字段 (注意字段名要和数据库列名一致)
             v.task_id,
             v.product_name,
             v.plan_output,
-            v.actual_done,          -- 视图里本来就有总产量，不用再算一次 totalOutput
+            v.actual_done,
             v.progress_percentage,
             v.task_status,
             v.plan_start_time,
             v.plan_end_time,
             v.finish_time,
 
-            -- 【新增】：手动计算 deadlineOutput (因为视图里没有这个)
-            -- 这里的逻辑是：去流水表里查，截止到计划结束时间为止的产量
+            --计算 deadlineOutput
+            --查截止到计划结束时间为止的产量
             (
                 SELECT COALESCE(SUM(e.quantity_done), 0)
                 FROM task_exec_4746 e

@@ -40,7 +40,7 @@ public class TaskController {
     public Map<String, Object> getTaskList() {
         Map<String, Object> result = new HashMap<>();
         try {
-            // 1. 查询列表 (此时 deadlineOutput 已经有值了)
+            // 1. 查询列表
             List<TaskProgressVo> taskList = taskProgressMapper.selectList(null);
 
             // 2. 遍历处理状态
@@ -51,17 +51,11 @@ public class TaskController {
                     long plan = task.getPlanOutput() == null ? 0 : task.getPlanOutput();
                     long doneBeforeDeadline = task.getDeadlineOutput() == null ? 0 : task.getDeadlineOutput();
 
-                    // 【核心判词】
-                    // 只要截止日前的产量 < 计划产量，说明你是靠截止日后的“补录”才凑够 100% 的。
-                    // 这种必须判为“超时完成”！
+                    // 只要截止日前的产量 < 计划产量,判为“超时完成”！
                     if (plan > 0 && doneBeforeDeadline < plan) {
                         task.setTaskStatus("超时完成");
                     }
 
-                    // 逻辑验证：
-                    // T0017: 截止日前做完1600 < 计划1700 -> 变为“超时完成” (完美)
-                    // T0016: 截止日前做完897 > 计划286 -> 保持“已完成” (完美)
-                    // T0027: 截止日前做完821 > 计划143 -> 保持“已完成” (完美)
                 }
             }
 
@@ -298,7 +292,6 @@ public class TaskController {
         Map<String, Object> result = new HashMap<>();
         try {
             // 1. 调用自定义 XML 查询，直接获取带有“截止日前产量”的数据
-            // 注意：这里不再查 Task4746 实体，而是查我们定义的 VO
             List<TaskStatisticsVO> list = taskMapper.selectTaskStatistics(startTime, endTime);
 
             // 2. 统计数据
@@ -310,21 +303,18 @@ public class TaskController {
             long totalActualOutput = 0; // 总完成产量
 
             for (TaskStatisticsVO t : list) {
-                // 累加总产量 (展示用)
+                // 累加总产量
                 if (t.getPlanOutput() != null) totalPlanOutput += t.getPlanOutput();
                 if (t.getTotalOutput() != null) totalActualOutput += t.getTotalOutput();
 
-                // 核心判定：只看截止日前产量够不够
-                // 这行代码对应 SQL 里的 HAVING SUM(...) >= plan_output
+                // 看截止日前产量够不够,对应 SQL 里的 HAVING SUM(...) >= plan_output
                 long plan = t.getPlanOutput() == null ? 0 : t.getPlanOutput();
                 long doneBefore = t.getOutputBeforeDeadline() == null ? 0 : t.getOutputBeforeDeadline();
 
-                // 只有这里达标了，才算按期！其他花里胡哨的条件全都不要！
+                // 只有这里达标了，才算按期！
                 if (plan > 0 && doneBefore >= plan) {
                     onTimeCompleted++;
                 } else {
-                    // 这里就是那 15 个没按期的 (32 - 17 = 15)
-                    // 包括 T0017 (补录的)、T00XX (没做完的)
                     overdueCompleted++;
                 }
             }
@@ -334,8 +324,8 @@ public class TaskController {
 
             Map<String, Object> data = new HashMap<>();
             data.put("total", total);
-            data.put("onTime", onTimeCompleted);         // 应该是 17
-            data.put("overdueCompleted", overdueCompleted); // 应该是 1 (T0017)
+            data.put("onTime", onTimeCompleted);
+            data.put("overdueCompleted", overdueCompleted);
             data.put("rate", String.format("%.2f", rate));
 
             data.put("totalPlanned", totalPlanOutput);

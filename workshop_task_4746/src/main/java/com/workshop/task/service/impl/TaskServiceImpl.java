@@ -10,10 +10,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task4746> implements TaskService {
 
-    // 必须加上 @Override 并写出方法体 {}
     @Override
     public TaskPredictionVO getTaskPrediction(String taskId) {
-        // 具体的逻辑写在这里
         return baseMapper.predictTaskStatus(taskId);
     }
 
